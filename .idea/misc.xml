@@ -3,8 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.5 (stray_pixel_filler)" />
   </component>
-  <component name="GithubDefaultAccount">
-    <option name="defaultAccountId" value="4779f2aa-57a4-4537-a5c9-519e0b08f73f" />
-  </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12" project-jdk-type="Python SDK" />
 </project>

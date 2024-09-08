@@ -3,56 +3,67 @@ import numpy as np
 from numba import jit, prange
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Define the cyan color (BGRA format for OpenCV)
-cyan_color = np.array([0, 0, 0, 0], dtype=np.uint8)
-
-
 # Efficient function to check unique pixel status using Numba
+# Define the black color (BGRA format for OpenCV)
+
+input_image_path = "input_image.png"
+output_image_path = "output_image.png"
+
+# Define the target color for stray pixels (BGRA format for OpenCV)
+target_color = np.array([0, 0, 0, 255], dtype=np.uint8) # Default black
+
+# Define tile size for batching
+tile_size = (1000, 1000)  # Adjust based on available memory
+
+
+# Function to check if the pixel should be black
 @jit(nopython=True, parallel=True)
-def check_unique_pixel(image, y, x):
-    if x < 1 or x >= image.shape[1] - 1 or y < 1 or y >= image.shape[0] - 1:
+def check_neighbors(image, y, x):
+    height, width = image.shape[:2]
+
+    # Check if the pixel is at the border
+    if x < 1 or x >= width - 1 or y < 1 or y >= height - 1:
         return False
 
+    # Get the current pixel and its neighbors
     center_pixel = image[y, x]
     neighbors = [
-        image[y - 1, x - 1], image[y - 1, x], image[y - 1, x + 1],
-        image[y, x - 1], image[y, x + 1],
-        image[y + 1, x - 1], image[y + 1, x], image[y + 1, x + 1]
+        image[y - 1, x],  # Above
+        image[y + 1, x],  # Below
+        image[y, x - 1],  # Left
+        image[y, x + 1]  # Right
     ]
 
+    # Check if any neighbor is black
     for neighbor in neighbors:
-        if not np.array_equal(center_pixel, neighbor):
-            return True
+        if not np.array_equal(neighbor, target_color):
+            return False
 
-    return False
+    return True
 
 
 # Process a section of the image
 def process_section(image, y_start, y_end, x_start, x_end):
     section = image[y_start:y_end, x_start:x_end]
 
-    # Create a mask for unique pixels
-    unique_mask = np.zeros(section.shape[:2], dtype=bool)
+    # Create a mask for pixels that should be black
+    black_mask = np.zeros(section.shape[:2], dtype=bool)
 
     for y in prange(section.shape[0]):
         for x in prange(section.shape[1]):
-            if check_unique_pixel(section, y, x):
-                unique_mask[y, x] = True
+            if check_neighbors(section, y, x):
+                black_mask[y, x] = True
 
-    # Apply the mask to set unique pixels to cyan
-    section[unique_mask] = cyan_color
+    # Apply the mask to set pixels to black
+    section[black_mask] = target_color
 
     return section, y_start, x_start
 
 
 # Load the image
-input_image_path = "C:/Users/Jeppe/Pictures/Uplay/aoe_png.png"
 image = cv2.imread(input_image_path, cv2.IMREAD_UNCHANGED)  # Load with alpha channel
 
 height, width = image.shape[:2]
-
-# Define tile size
-tile_size = (1000, 1000)  # Adjust based on available memory
 
 tiles = []
 for y in range(0, height, tile_size[1]):
@@ -85,7 +96,6 @@ for processed_section, y_start, x_start in results:
     full_image[y_start:y_start + tile_size[1], x_start:x_start + tile_size[0]] = processed_section
 
 # Save the modified image
-output_image_path = "output_image.png"
 cv2.imwrite(output_image_path, full_image)
 
 print(f"Processing complete. Saved the modified file as {output_image_path}")
